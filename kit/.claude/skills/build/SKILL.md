@@ -12,6 +12,7 @@ is ready for review with a pre-PR check and a fresh-context self-review.
 ## Reads
 - `intent/NNN-slug/plan.md` (must be accepted), plus `spec.md`/`intent.md` for
   context.
+- `intent/NNN-slug/design/*` (accepted): `docs/design-system/tokens.json`, `design/openapi.yaml`, `design/data-model.md`, `design/test-strategy.md`, `design/security.md`.
 - `CLAUDE.md`, `REVIEW.md`, `.sdlc/policies/*.md`.
 - `.sdlc/config.json` for `testCommand` and `lintCommand`.
 
@@ -34,16 +35,21 @@ is ready for review with a pre-PR check and a fresh-context self-review.
    `build-log.md`.
 6. If the plan is wrong or incomplete, stop. Record why in `build-log.md` and
    ask the human to reopen `plan.md` (set it to `draft`). Do not work around it.
-7. Keep to the files in the plan. If you must touch another file, log it under
+7. Follow the design: use the design-system tokens (no hard-coded colors or
+   spacing), implement the OpenAPI contract exactly (paths, schemas, error shape),
+   write migrations as in `data-model.md` (including rollback), and write the tests
+   named in `test-strategy.md`. If code and design disagree, stop and ask the
+   human to reopen the design artifact; do not drift silently.
+8. Keep to the files in the plan. If you must touch another file, log it under
    Deviations and tell the human.
-8. Pre-PR layer, run all of: `testCommand`, `lintCommand`, and the project build
+9. Pre-PR layer, run all of: `testCommand`, `lintCommand`, and the project build
    if there is one. Fix failures; the Stop hook also blocks you from finishing
    while tests or lint fail (3 attempts, then it hands back to the human).
-9. Start a fresh-context subagent (Agent tool) that sees only the diff,
+10. Start a fresh-context subagent (Agent tool) that sees only the diff,
    `plan.md`, `CLAUDE.md` and `REVIEW.md`. Ask it to report bugs, missed plan
    items and rule violations. Fix valid findings, re-run checks, and record the
    outcome under Pre-PR checks.
-10. Commit in small steps, then stop. Do not push or open a PR here.
+11. Commit in small steps, then stop. Do not push or open a PR here.
 
 ## Gate
 Tell the human: build is done and checks are green, see

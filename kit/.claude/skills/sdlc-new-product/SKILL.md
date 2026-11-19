@@ -20,17 +20,24 @@ the first intents.
 - A stack proposal inside the product intent (alternatives and trade-offs).
 - A printed JSON change for `.sdlc/config.json` (`testCommand`/`lintCommand`)
   once a stack exists. The config is protected: you never edit it.
+- `intent/000-product/grill.md`, then the product-level `design-system`, `architecture`
+  and `infra-design` artifacts.
 - Up to 3 suggested draft intents for the first features.
 
 ## Steps
-1. Interview, a few questions at a time: who the users are, the problem, what
+0. Start with `grill-me` at product level (`intent/000-product/grill.md`): users,
+   core flows, data, integrations, non-functional needs, risks, one question at a
+   time. Open questions there block acceptance of the product intent.
+1. Interview, one question at a time, each with a recommended answer (recommend-first
+   rule, see `CLAUDE.md`; match `audience`): who the users are, the problem, what
    success looks like in 90 days, constraints (team, budget, compliance,
    hosting), and what is explicitly out of scope.
 2. Write `intent/000-product/intent.md` from the intent template: What, Why,
    Constraints, Success metric, Out of scope. Set `risk: medium` unless the
    human says otherwise.
-3. Propose a stack with 2 options and a recommendation, explaining trade-offs
-   for this team. Put it in the intent under a "Stack proposal" heading. The
+3. Recommend ONE stack with reason and trade-off for this team; mention an
+   alternative only if the human asks or it is genuinely close. Flag database
+   engine and cloud provider as **Hard to change later**. Put it in the intent under a "Stack proposal" heading. The
    human decides.
 4. After the human accepts the intent and picks a stack, scaffold only what the
    plan allows. Until a plan is accepted, edits outside the allowlist stay
@@ -40,9 +47,12 @@ the first intents.
 6. Once a stack and test runner exist and you have run them once, print the
    exact JSON change (`"testCommand": ...`, `"lintCommand": ...`) and ask the
    human to apply it to `.sdlc/config.json`. Never edit that file yourself.
-7. Suggest up to 3 first features as draft intents using the `intent` skill; the
+7. Before the first feature, run `design-system`, `architecture` and
+   `infra-design` for the product (stored under `docs/design-system/` and
+   `intent/000-product/design/`); each needs human acceptance.
+8. Suggest up to 3 first features as draft intents using the `intent` skill; the
    first is usually "project skeleton with a passing test".
-8. Commit the intent, then `CLAUDE.md`.
+9. Commit the intent, then `CLAUDE.md`.
 
 ## Gate
 Tell the human: "Review `intent/000-product/intent.md`. When it is right, YOU

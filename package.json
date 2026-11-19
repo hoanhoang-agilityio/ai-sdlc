@@ -1,6 +1,6 @@
 {
   "name": "ai-sdlc",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Claude Code kit (skills + hooks + CI + installer) implementing an AI-native SDLC as a chain of human-gated artifacts.",
   "type": "module",
   "bin": {

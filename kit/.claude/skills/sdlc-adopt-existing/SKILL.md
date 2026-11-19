@@ -19,6 +19,10 @@ and draft up to 5 intents. No application code changes.
 - `intent/000-adopt/intent.md` and `intent/000-adopt/plan.md` (risk `low`)
   covering this setup work.
 - `CLAUDE.md` (only adds to human content), `docs/codebase-map.md`, `REVIEW.md`.
+- Reverse-engineered drafts, each `status: draft` with frontmatter: `docs/design-system/`
+  (`design-system.md`, `tokens.json`, `components.md`), `docs/architecture.md`,
+  `docs/data-model.md`, `docs/api.md`, `docs/infra.md`. They describe what exists; a
+  human reviews and accepts them.
 - A printed JSON change for `.sdlc/config.json` (`testCommand`, `lintCommand`,
   `sensitivePaths`). The config is protected: you never edit it.
 - Up to 5 draft intents in `intent/NNN-slug/intent.md`.
@@ -31,22 +35,25 @@ and draft up to 5 intents. No application code changes.
    accept them.
 2. Map the codebase: layout, entry points, modules, data stores, external
    services, build and deploy. Write `docs/codebase-map.md` with real paths.
-3. Find the test command and run it. Verify it really runs and note pass/fail.
+3. Reverse-engineer the draft docs listed under Writes from the real code and
+   config (real paths, real schema, real endpoints, real pipeline). Mark anything
+   you could not verify as "unverified". Follow the recommend-first rule (see `CLAUDE.md`): one recommended answer with reason and trade-off, not a menu; match `audience` in `.sdlc/config.json`.
+4. Find the test command and run it. Verify it really runs and note pass/fail.
    Print the exact JSON change for `testCommand` (and `lintCommand`) and ask
    the human to apply it to `.sdlc/config.json`; only if verified, otherwise
    say why it stays null.
-4. Write `CLAUDE.md`: keep every line the human wrote; add commands,
+5. Write `CLAUDE.md`: keep every line the human wrote; add commands,
    architecture summary and conventions you observed. Never delete or rewrite
    human text.
-5. Write `REVIEW.md` from observed conventions (naming, error handling, test
+6. Write `REVIEW.md` from observed conventions (naming, error handling, test
    style, layering) so the reviewer can enforce them. Mark it as project-owned.
-6. Propose `sensitivePaths` (auth, billing, migrations, CI, infra, secrets
+7. Propose `sensitivePaths` (auth, billing, migrations, CI, infra, secrets
    handling) as a printed `"sensitivePaths": [...]` JSON snippet and ask the
    human to apply it to `.sdlc/config.json` (protected, human-only).
-7. Draft at most 5 intents from TODO/FIXME comments, failing tests and what the
+8. Draft at most 5 intents from TODO/FIXME comments, failing tests and what the
    human tells you. Use the `intent` skill's template, each `status: draft`,
    with a proposed risk.
-8. Commit in separate commits: adoption artifacts, docs, then each intent.
+9. Commit in separate commits: adoption artifacts, docs, then each intent.
 
 ## Gate
 Tell the human to review `intent/000-adopt/` and each drafted intent, and to set

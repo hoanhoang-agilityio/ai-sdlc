@@ -14,6 +14,7 @@ the loop.
 - The signal: alert, logs, metric, bug report (read only).
 - The originating change `intent/MMM-slug/*` and its `review.md`/`release.md`,
   if known.
+- `intent/MMM-slug/design/observability.md`: alerts (by id), SLOs and runbooks. Incidents normally start from one of these alerts; name it.
 - `CLAUDE.md`, `REVIEW.md`, `.sdlc/policies/*.md`, `evals/review-cases/`.
 
 ## Writes
@@ -26,7 +27,9 @@ the loop.
 
 ## Steps
 1. Pick the next number `NNN` for the incident; create `intent/NNN-slug/`.
-2. Collect the signal with read-only commands. Never run anything against
+2. Name the alert from `observability.md` that fired (or note that none did, which
+   is itself a failed control). Follow its runbook for read-only checks.
+   Collect the signal with read-only commands. Never run anything against
    production, never change production data or config.
 3. Reconstruct a Timeline from logs and git history.
 4. Identify the root cause and the control that should have caught it (intent,

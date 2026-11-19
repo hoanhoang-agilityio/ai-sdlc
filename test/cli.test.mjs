@@ -7,7 +7,9 @@ import { tmp, put, cli, fm } from './helpers.mjs';
 const j = (root, rel) => JSON.parse(fs.readFileSync(path.join(root, rel), 'utf8'));
 const rd = (root, rel) => fs.readFileSync(path.join(root, rel), 'utf8');
 const has = (root, rel) => fs.existsSync(path.join(root, rel));
-const SKILLS = ['intent', 'spec', 'plan', 'build', 'review-pr', 'ship', 'incident', 'sdlc-status', 'sdlc-new-product', 'sdlc-adopt-existing'];
+const SKILLS = ['intent', 'spec', 'plan', 'build', 'review-pr', 'ship', 'incident', 'sdlc-status', 'sdlc-new-product', 'sdlc-adopt-existing',
+  'grill-me', 'design', 'architecture', 'prototype', 'design-system', 'frontend-design', 'api-design', 'backend-design',
+  'data-model', 'infra-design', 'security-design', 'test-strategy', 'observability-design'];
 
 test('--help, --version, unknown command', () => {
   assert.equal(cli(['--help']).code, 0);
@@ -23,6 +25,8 @@ test('init in empty dir: new mode', () => {
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /\/sdlc-new-product/);
   assert.equal(j(root, '.sdlc/config.json').mode, 'new');
+  assert.equal(j(root, '.sdlc/config.json').audience, 'non-developer');
+  assert.equal(SKILLS.length, 23);
   for (const s of SKILLS) assert.ok(has(root, `.claude/skills/${s}/SKILL.md`), s);
   for (const f of ['.claude/hooks/sdlc-gate.mjs', '.claude/hooks/sdlc-stop.mjs', '.claude/hooks/lib.mjs',
     'REVIEW.md', '.sdlc/policies/README.md', 'intent/README.md', 'evals/review-cases/README.md',
@@ -123,9 +127,34 @@ test('status table', () => {
   put(root, '.sdlc/active', '002-b');
   const r = cli(['status', root]);
   assert.equal(r.code, 0);
-  assert.match(r.out, /change\s+intent\s+spec\s+plan\s+incident\s+risk\s+next gate/);
-  assert.match(r.out, /001-a\s+accepted\s+-\s+-\s+-\s+medium\s+write spec\.md/);
-  assert.match(r.out, /\*002-b\s+accepted\s+-\s+draft\s+-\s+low\s+accept plan\.md/);
+  assert.match(r.out, /change\s+intent\s+spec\s+design\s+plan\s+incident\s+risk\s+next gate/);
+  assert.match(r.out, /001-a\s+accepted\s+-\s+-\s+-\s+-\s+medium\s+write spec\.md/);
+  assert.match(r.out, /\*002-b\s+accepted\s+-\s+-\s+draft\s+-\s+low\s+accept plan\.md/);
+});
+
+test('status design column and next gate', () => {
+  const root = tmp();
+  cli(['init', root]);
+  put(root, 'intent/001-a/intent.md', fm('accepted'));
+  put(root, 'intent/001-a/spec.md', fm('accepted'));
+  let r = cli(['status', root]);
+  assert.match(r.out, /001-a\s+accepted\s+accepted\s+-\s+-\s+-\s+medium\s+write design\/design\.md/);
+  put(root, 'intent/001-a/design/design.md', '---\nstatus: accepted\nrisk: medium\nrequires: [api-design, data-model, security-design]\n---\n');
+  put(root, 'intent/001-a/design/api.md', fm('accepted'));
+  put(root, 'intent/001-a/design/data-model.md', fm('draft'));
+  r = cli(['status', root]);
+  assert.match(r.out, /001-a\s+accepted\s+accepted\s+2\/4\s+-\s+-\s+medium\s+accept design\/data-model\.md/);
+});
+
+test('doctor counts all 23 skills', () => {
+  const root = tmp();
+  cli(['init', root]);
+  let r = cli(['doctor', root]);
+  assert.match(r.out, /all 23 skills present/);
+  fs.rmSync(path.join(root, '.claude/skills/grill-me'), { recursive: true });
+  r = cli(['doctor', root]);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /missing grill-me/);
 });
 
 test('doctor passes after init, fails when broken', () => {

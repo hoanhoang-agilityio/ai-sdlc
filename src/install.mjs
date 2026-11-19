@@ -86,6 +86,7 @@ export function init(root, opts = {}) {
       testCommand: detectTestCommand(root),
       lintCommand: detectLintCommand(root),
       defaultBranch: detectDefaultBranch(root),
+      audience: 'non-developer',
       sensitivePaths: [],
       codePathsAllowlist: DEFAULT_ALLOWLIST,
       roles: { productOwner: null, codeOwners: [] },

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { exists, read, readJsonSafe, MARK_START, MARK_END } from './util.mjs';
+import { exists, read, readJsonSafe, listFiles, KIT_DIR, MARK_START, MARK_END } from './util.mjs';
 
 export function runDoctor(root) {
   const checks = [];
@@ -15,6 +15,10 @@ export function runDoctor(root) {
   const hooks = ['sdlc-gate.mjs', 'sdlc-stop.mjs', 'lib.mjs'];
   const missing = hooks.filter((h) => !exists(path.join(root, '.claude', 'hooks', h)));
   add('hook files present', !missing.length, missing.length ? `missing ${missing.join(', ')}` : '');
+
+  const skillNames = listFiles(path.join(KIT_DIR, '.claude', 'skills')).filter((f) => f.endsWith('/SKILL.md')).map((f) => f.split('/')[0]);
+  const missingSkills = skillNames.filter((n) => !exists(path.join(root, '.claude', 'skills', n, 'SKILL.md')));
+  add(`all ${skillNames.length} skills present`, !missingSkills.length, missingSkills.length ? `missing ${missingSkills.join(', ')}` : '');
 
   const s = exists(path.join(root, '.claude', 'settings.json')) ? readJsonSafe(path.join(root, '.claude', 'settings.json')) : null;
   const has = (event, file) => ((s && s.hooks && s.hooks[event]) || []).some((g) => ((g && g.hooks) || []).some((h) => String(h.command || '').includes(file)));

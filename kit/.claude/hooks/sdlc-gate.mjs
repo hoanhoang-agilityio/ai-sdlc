@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   DEFAULT_ALLOWLIST, readStdinJson, projectRoot, readConfig, readFrontmatter, isAccepted,
-  matchesAny, relToRoot, currentBranch, appendBypassLog, activeChange,
+  matchesAny, relToRoot, currentBranch, appendBypassLog, activeChange, designState, DESIGN_FILES,
 } from './lib.mjs';
 
 class Block extends Error {}
@@ -13,6 +13,8 @@ const block = (msg) => { throw new Block(msg); };
 const ACCEPT_RE = /^\s*status:\s*["']?accepted\b/im;
 const ACCEPTED_BY_RE = /^\s*accepted_by:[ \t]*["']?[^\s"'#]/im;
 const ARTIFACT_RE = /^intent\/([^/]+)\/(intent|spec|plan|incident)\.md$/;
+const DESIGN_RE = /^intent\/([^/]+)\/design\/.+$/;
+const DESIGN_MD_RE = /^intent\/[^/]+\/design\/[^/]+\.md$/;
 const HUMAN_ONLY = 'Only a human may accept an artifact: open the file and set status, accepted_by and accepted_at yourself.';
 
 function newTexts(tool, ti) {
@@ -102,6 +104,28 @@ function checkFile(root, cfg, tool, ti) {
   // Rule 5
   if (secretName(path.basename(rel))) block(`Blocked: ${rel} looks like a secrets file. Edit it yourself; use .env.example for templates.`);
 
+  // Rule 2 (frozen): design markdown, design-system files, ADRs
+  const dsDir = path.join(root, 'docs', 'design-system');
+  if (DESIGN_MD_RE.test(rel) || rel === 'docs/design-system/design-system.md' || /^docs\/adr\/[^/]+\.md$/.test(rel)) {
+    if (isAccepted(abs)) block(`Blocked: ${rel} is accepted and frozen. A human must set status: draft to reopen it.`);
+  }
+  if ((rel === 'docs/design-system/tokens.json' || rel === 'docs/design-system/components.md') && isAccepted(path.join(dsDir, 'design-system.md'))) {
+    block(`Blocked: ${rel} is frozen because docs/design-system/design-system.md is accepted. A human must set it to draft to reopen it.`);
+  }
+
+  // Rule 2 (frozen companions): contract files follow their accepted artifact
+  const cm = /^(intent\/[^/]+\/design)\/(openapi\.ya?ml|asyncapi\.ya?ml|[^/]+\.graphql|prototype\/.+)$/.exec(rel);
+  if (cm) {
+    const owner = cm[2].startsWith('prototype/') ? 'prototype.md' : 'api.md';
+    if (isAccepted(path.join(root, cm[1], owner))) block(`Blocked: ${rel} is frozen because ${cm[1]}/${owner} is accepted. A human must set it to draft to reopen it.`);
+  }
+
+  // Rule 3 (design): any file under intent/<d>/design/ needs an accepted spec.md
+  const dm = DESIGN_RE.exec(rel);
+  if (dm && !isAccepted(path.join(root, 'intent', dm[1], 'spec.md'))) {
+    block(`Blocked: ${rel} needs an accepted spec.md in intent/${dm[1]}/. Ask the human to review and accept spec.md first.`);
+  }
+
   // Rule 2 + 3
   const m = ARTIFACT_RE.exec(rel);
   if (m) {
@@ -114,9 +138,17 @@ function checkFile(root, cfg, tool, ti) {
     if (kind === 'plan') {
       const ifm = readFrontmatter(path.join(dir, 'intent.md'));
       const intentOk = isAccepted(path.join(dir, 'intent.md'));
-      const low = intentOk && String(ifm.risk || '').toLowerCase() === 'low';
-      if (!isAccepted(path.join(dir, 'spec.md')) && !low) {
-        block(`Blocked: plan.md needs an accepted spec.md (or an accepted intent.md with risk: low) in intent/${m[1]}/. Ask the human to accept the previous artifact first.`);
+      const low = intentOk && String(ifm && ifm.risk || '').toLowerCase() === 'low';
+      if (!low) {
+        const missing = [];
+        if (!isAccepted(path.join(dir, 'spec.md'))) missing.push('spec.md');
+        const ds = designState(root, dir);
+        if (ds.unknown.length) block(`Blocked: design.md requires unknown artifact '${ds.unknown[0]}'; valid: ${Object.keys(DESIGN_FILES).join(', ')}. Ask the human to fix requires: in intent/${m[1]}/design/design.md.`);
+        if (!ds.accepted) missing.push('design/design.md');
+        for (const it of ds.items) if (!it.accepted) missing.push(it.rel);
+        if (missing.length) {
+          block(`Blocked: plan.md in intent/${m[1]}/ needs these accepted first (or an accepted intent.md with risk: low): ${missing.join(', ')}. Ask the human to review and accept them.`);
+        }
       }
     }
   }
