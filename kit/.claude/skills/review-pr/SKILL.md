@@ -11,7 +11,7 @@ inline comments, and open the PR. Claude reviews; humans approve and merge.
 
 ## Reads
 - The diff against the default branch.
-- `intent/NNN-slug/{intent,spec,plan,build-log}.md`, `CLAUDE.md`, `REVIEW.md`,
+- `intent/NNN-slug/{intent,spec,plan,build-log}.md` and `design/*` (openapi, data-model, security, architecture, tokens), `CLAUDE.md`, `REVIEW.md`,
   `.sdlc/policies/*.md`.
 - `.sdlc/config.json` (risk, `sensitivePaths`) and
   `.github/pull_request_template.md`.
@@ -24,10 +24,10 @@ inline comments, and open the PR. Claude reviews; humans approve and merge.
 ## Steps
 1. Confirm tests and lint pass and `build-log.md` exists. Work out the round
    number (max 3).
-2. Layer 1, finders. Launch 3 to 4 parallel subagents with the Agent tool,
+2. Layer 1, finders. Launch 4 to 5 parallel subagents with the Agent tool,
    `model: sonnet`, one angle each: (a) spec coverage against requirements and
    acceptance criteria, (b) correctness and edge cases, (c) rules in
-   `CLAUDE.md`, `REVIEW.md` and policies, (d) performance. Each returns findings
+   `CLAUDE.md`, `REVIEW.md` and policies, (d) performance, (e) design conformance: the diff against `design/openapi.yaml` (the API contract), `design/data-model.md` (schema and migrations), `docs/design-system/tokens.json` (no hard-coded values), `design/architecture.md` (module boundaries) and `design/security.md` (controls). Skip (e) only when the change has no `design/` folder. Each returns findings
    with file:line and evidence.
 3. Layer 2, verifiers. For every finding launch 3 Agent subagents with `model:
    haiku` that independently try to disprove it. Keep a finding only if at least

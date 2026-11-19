@@ -11,6 +11,7 @@ to watch, and how to roll back. Production deployment is approved by a human.
 
 ## Reads
 - The merged PR, `intent/NNN-slug/{intent,plan,review}.md`.
+- `intent/NNN-slug/design/infra.md` (deploy strategy, rollback) and `design/observability.md` (alerts, dashboards).
 - CI status (`gh run list`, `gh pr view`, read only).
 - `.sdlc/policies/*.md` for release rules.
 
@@ -22,15 +23,20 @@ to watch, and how to roll back. Production deployment is approved by a human.
    stop; a human merges.
 2. Read the success metric in `intent.md` and the rollback in `plan.md`.
 3. Fill What shipped with the PR link, merge commit and `intent/NNN-slug`.
-4. Read pipeline status with read-only commands. Record each stage and whether
+4. Follow the deploy strategy in `design/infra.md` (flag, canary, blue-green): record
+   which strategy applies and each rollout step in `release.md`.
+5. Read pipeline status with read-only commands. Record each stage and whether
    the `production` environment approval is pending.
-5. Fill Metrics to watch: the success metric plus guardrails (errors, latency,
-   the area touched), with normal ranges and alert thresholds. Ask the human for
-   monitoring locations you cannot see.
-6. Set a Watch window and name who is on point (ask the human).
-7. Copy the rollback steps from `plan.md` and state the signal that triggers them.
-8. Remove `.sdlc/active` if it names this change.
-9. Commit only `release.md` on a short-lived branch `chore/NNN-slug-release`
+6. Fill Metrics to watch: the success metric plus guardrails (errors, latency,
+   the area touched), with normal ranges and alert thresholds from
+   `design/observability.md`. Verify the alerts and dashboards it lists are live
+   (read only; ask the human to confirm anything you cannot see) and record
+   "not verified" for any that are not. Ask the human for monitoring locations
+   you cannot see.
+7. Set a Watch window and name who is on point (ask the human).
+8. Copy the rollback steps from `plan.md` and state the signal that triggers them.
+9. Remove `.sdlc/active` if it names this change.
+10. Commit only `release.md` on a short-lived branch `chore/NNN-slug-release`
    from the default branch (you cannot push to it); a human merges.
 
 ## Gate

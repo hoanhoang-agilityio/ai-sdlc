@@ -3,14 +3,15 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseFrontmatter } from '../kit/.claude/hooks/lib.mjs';
+import { parseFrontmatter, designState, designRequires, DESIGN_FILES } from '../kit/.claude/hooks/lib.mjs';
 
 export const KIT_DIR = fileURLToPath(new URL('../kit/', import.meta.url));
 export const PKG = JSON.parse(fs.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'));
 export const MARK_START = '<!-- ai-sdlc:start -->';
 export const MARK_END = '<!-- ai-sdlc:end -->';
 export const STOP_ATTEMPTS = '.sdlc/.stop-attempts';
-export { parseFrontmatter };
+export { parseFrontmatter, designState, designRequires, DESIGN_FILES };
+export const SKILL_COUNT = 23;
 
 export const DEFAULT_ALLOWLIST = [
   'intent/**', '.sdlc/**', '.claude/**', 'docs/**', 'evals/**',

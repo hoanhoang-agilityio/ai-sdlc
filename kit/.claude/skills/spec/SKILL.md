@@ -11,6 +11,7 @@ acceptance criteria. Skipped when the intent has `risk: low`.
 
 ## Reads
 - `intent/NNN-slug/intent.md` (must be `status: accepted`).
+- `intent/NNN-slug/grill.md` if it exists: carry its decisions into the spec; any open question in it blocks acceptance, so tell the human.
 - `CLAUDE.md`, `docs/codebase-map.md`, `REVIEW.md`.
 - Every file in `.sdlc/policies/*.md` (project rules the design must respect).
 - The code areas the change will touch (read only).
@@ -28,7 +29,8 @@ acceptance criteria. Skipped when the intent has `risk: low`.
    patterns to reuse.
 5. Write Requirements as numbered, testable statements. Each must be falsifiable.
 6. Write Design: approach, components, data and API changes, and one alternative
-   you rejected with the reason.
+   you rejected with the reason. Detailed design belongs to the `design` stage.
+   Follow the recommend-first rule (see `CLAUDE.md`): one recommended answer with reason and trade-off, not a menu; match `audience` in `.sdlc/config.json`. Record each choice as a decision with its reason.
 7. Fill "Policies applied" with each relevant policy rule and how the design
    meets it. If a policy conflicts with the intent, raise it under Risks instead
    of choosing silently.
@@ -41,7 +43,7 @@ acceptance criteria. Skipped when the intent has `risk: low`.
 ## Gate
 Tell the human: "Review `intent/NNN-slug/spec.md`. When it is right, YOU set
 `status: accepted`, `accepted_by` and `accepted_at`." Stop. The next skill is
-`plan`.
+`design` (medium/high risk), then `plan`.
 
 Accept by editing the frontmatter and committing it yourself (`docs(NNN-slug): accept spec`). Do not ask Claude to commit it: CI rejects acceptance
 commits that carry a Claude co-author trailer. Optionally push the branch early
@@ -61,7 +63,7 @@ Commit on the change branch `feat/NNN-slug` (`fix/NNN-slug`), the same one every
 - Do not add requirements the intent does not justify.
 
 ## Next
-After the human accepts the spec: `plan`.
+After the human accepts the spec: `design` (medium/high risk), then `plan`.
 
 If anything above cannot be done (missing file, unaccepted artifact, failing
 command), stop and tell the human exactly what is missing instead of guessing.

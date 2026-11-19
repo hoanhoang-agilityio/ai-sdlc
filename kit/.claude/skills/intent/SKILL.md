@@ -13,6 +13,7 @@ success metric, and a risk tier. This is the first human gate of the chain.
 - The human's words and any source link (ticket, alert, thread).
 - `CLAUDE.md`, `docs/codebase-map.md` (if present) and `.sdlc/config.json` (for
   `sensitivePaths`).
+- `intent/NNN-slug/grill.md` (or `intent/000-product/grill.md`) if it exists: carry its decisions into the intent; any open question in it blocks acceptance, so tell the human.
 - Existing `intent/*/` directories to avoid duplicates and to pick the next number.
 
 ## Writes
@@ -28,9 +29,9 @@ success metric, and a risk tier. This is the first human gate of the chain.
    so one PR carries intent, spec, plan, code and review.
 3. Search existing intents for duplicates. If one covers the same goal, tell the
    human and stop.
-4. Ask at most 5 clarifying questions, only about things you cannot infer: who
+4. Ask at most 5 clarifying questions, one at a time, only about things you cannot infer: who
    is affected, why now, hard constraints, how success is measured, what is out
-   of scope.
+   of scope. Follow the recommend-first rule (see `CLAUDE.md`): one recommended answer with reason and trade-off, not a menu; match `audience` in `.sdlc/config.json`. If the request is very vague, offer the `grill-me` skill first.
 5. Copy the template to `intent/NNN-slug/intent.md`. Fill `source:` with the
    link and `originator:` with who asked.
 6. Write What, Why, Constraints, Success metric, Out of scope and Open

@@ -10,8 +10,9 @@ Produce `plan.md`: exactly which files change, in which order, how it is tested,
 and how to roll back. Code edits stay blocked until a human accepts this plan.
 
 ## Reads
-- `intent/NNN-slug/spec.md` (accepted), or `intent.md` (accepted, `risk: low`)
-  when there is no spec.
+- `intent/NNN-slug/spec.md` (accepted) and `design/design.md` with every artifact
+  in its `requires:` (all accepted), or `intent.md` (accepted, `risk: low`) when
+  design is skipped.
 - `.sdlc/policies/*.md`, `CLAUDE.md`, `REVIEW.md`, `docs/codebase-map.md`.
 - The code that will change, and the existing tests next to it.
 - `.sdlc/config.json` for `testCommand`, `lintCommand` and `sensitivePaths`.
@@ -21,15 +22,18 @@ and how to roll back. Code edits stay blocked until a human accepts this plan.
   draft`, same `risk:` as its source.
 
 ## Steps
-1. Confirm the source artifact is accepted: the spec, or for `risk: low` the
-   intent. If not, stop and name the file the human must review.
+1. Confirm the source artifacts are accepted: the spec, `design/design.md` and every
+   artifact in its `requires:`, or for `risk: low` the intent. If not, stop and name
+   each file the human must review (the hook blocks `plan.md` and lists them).
 2. Read every file in `.sdlc/policies/*.md` and note the rules that constrain
    the work.
 3. Read the code to be changed. Use real paths; never guess a filename.
 4. Fill the Files table: every file to create or edit, with a one-line reason.
    Flag any path matching `sensitivePaths` and make sure `risk:` is at least
    `medium`.
-5. Write ordered Steps, small enough to commit separately. Tests come first:
+5. Write ordered Steps, small enough to commit separately. Include one step per
+   design artifact (architecture, data-model, api, backend, frontend, infra,
+   security, observability, test-strategy), each linking that artifact. Follow the recommend-first rule (see `CLAUDE.md`): one recommended answer with reason and trade-off, not a menu; match `audience` in `.sdlc/config.json`. Tests come first:
    each behavior step is preceded by the test that fails without it.
 6. Write the Test plan: new tests, the command from `testCommand`, and manual
    checks if any.
