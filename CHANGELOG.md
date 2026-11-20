@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 (2026-11-20)
+
+### Fixed
+- CI: a PR that only changes ai-sdlc kit files (as listed in `.sdlc/kit-lock.json`, plus settings, CLAUDE.md and .gitignore) passes without an intent, so `update` PRs are not blocked.
+- `update`: untouched v0.2 copies of the PR template and CODEOWNERS are refreshed like `sdlc-ci.yml`.
+
 ## 0.3.0 (2026-11-20)
 
 Lighter by design: shorter instructions, fewer artifacts, one-action acceptance.
