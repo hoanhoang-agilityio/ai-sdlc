@@ -19,10 +19,15 @@ function saveLock(root, lock) {
   write(path.join(root, LOCK), JSON.stringify(lock, null, 2) + '\n');
 }
 
-function createIfMissing(root, rel, log) {
+// sha256 of the v0.2 kit's sdlc-ci.yml: an untouched v0.2 copy has no lock entry but may still be refreshed.
+const V02_CI_SHA = '2849e3ad9c402a2091e3828a25d44f82ed4d599d47955f7d473cfdb3adb80803';
+
+function createIfMissing(root, rel, log, lock) {
   const dest = path.join(root, rel);
   if (exists(dest)) { log.push(`keep   ${rel} (exists)`); return; }
-  write(dest, read(kitPath(rel)));
+  const body = read(kitPath(rel));
+  write(dest, body);
+  if (lock) lock.files[rel] = sha(body);
   log.push(`create ${rel}`);
 }
 
@@ -34,9 +39,10 @@ function installSettings(root, log) {
     existing = readJsonSafe(p);
     if (!existing) throw new Error('.claude/settings.json is not valid JSON; fix it and re-run');
   }
-  const { settings, added } = mergeSettings(existing, fragment);
+  const { settings, added, deniedAdded } = mergeSettings(existing, fragment);
   write(p, JSON.stringify(settings, null, 2) + '\n');
-  log.push(added ? `merge  .claude/settings.json (+${added} hook group${added > 1 ? 's' : ''})` : 'keep   .claude/settings.json hooks (already present)');
+  const parts = [added && `+${added} hook group${added > 1 ? 's' : ''}`, deniedAdded && `+${deniedAdded} deny rule${deniedAdded > 1 ? 's' : ''}`].filter(Boolean);
+  log.push(parts.length ? `merge  .claude/settings.json (${parts.join(', ')})` : 'keep   .claude/settings.json (hooks and deny rules already present)');
 }
 
 function installClaudeMd(root, log) {
@@ -53,12 +59,15 @@ function installClaudeMd(root, log) {
   }
 }
 
+const IGNORED = [STOP_ATTEMPTS, '.sdlc/active'];
 function ensureGitignore(root, log) {
   const p = path.join(root, '.gitignore');
   const cur = exists(p) ? read(p) : '';
-  if (cur.split(/\r?\n/).includes(STOP_ATTEMPTS)) return;
-  write(p, cur + (cur && !cur.endsWith('\n') ? '\n' : '') + STOP_ATTEMPTS + '\n');
-  log.push(`update .gitignore (+${STOP_ATTEMPTS})`);
+  const lines = cur.split(/\r?\n/);
+  const add = IGNORED.filter((i) => !lines.includes(i));
+  if (!add.length) return;
+  write(p, cur + (cur && !cur.endsWith('\n') ? '\n' : '') + add.join('\n') + '\n');
+  log.push(`update .gitignore (+${add.join(', ')})`);
 }
 
 export function init(root, opts = {}) {
@@ -98,7 +107,7 @@ export function init(root, opts = {}) {
   for (const rel of PROJECT_OWNED) createIfMissing(root, rel, log);
 
   const wantCi = opts.noCi ? false : mode === 'new' || !!opts.ci;
-  if (wantCi) for (const rel of CI_FILES) createIfMissing(root, rel, log);
+  if (wantCi) for (const rel of CI_FILES) createIfMissing(root, rel, log, lock);
   else log.push(opts.noCi ? 'skip   CI templates (--no-ci)' : 'skip   CI templates (existing repo; add with --ci)');
 
   installClaudeMd(root, log);
@@ -125,6 +134,26 @@ export function update(root, opts = {}) {
       for (const d of simpleDiff(cur, body)) log.push('         ' + d);
     }
   }
+  if (exists(path.join(root, '.github', 'workflows', 'sdlc-ci.yml'))) {
+    for (const rel of CI_FILES) {
+      const dest = path.join(root, rel);
+      const body = read(kitPath(rel));
+      if (!exists(dest)) { if (rel.endsWith('sdlc-accept.yml')) createIfMissing(root, rel, log, lock); continue; }
+      const cur = sha(read(dest));
+      if (cur === sha(body)) { lock.files[rel] = cur; continue; }
+      const pristine = lock.files[rel] ? cur === lock.files[rel] : rel.endsWith('sdlc-ci.yml') && cur === V02_CI_SHA;
+      if (opts.force || pristine) { write(dest, body); lock.files[rel] = sha(body); log.push(`update ${rel}${opts.force ? ' (--force)' : ''}`); }
+      else log.push(`skip   ${rel} (modified locally or unknown version; run update --force, or copy it from the kit)`);
+    }
+  }
+  const inKit = new Set([...kitOwnedFiles(), ...CI_FILES]);
+  for (const [rel, hash] of Object.entries(lock.files)) {
+    if (inKit.has(rel)) continue;
+    const dest = path.join(root, rel);
+    if (exists(dest) && sha(read(dest)) !== hash) { log.push(`keep   ${rel} (removed from kit, modified locally)`); continue; }
+    if (exists(dest)) { fs.rmSync(dest); log.push(`remove ${rel} (removed from kit)`); pruneEmptyDirs(root, rel); }
+    delete lock.files[rel];
+  }
   installSettings(root, log);
   installClaudeMd(root, log);
   ensureGitignore(root, log);
@@ -144,7 +173,7 @@ function pruneEmptyDirs(root, rel) {
 export function uninstall(root) {
   const log = [];
   const lock = loadLock(root);
-  const files = new Set([...kitOwnedFiles(), ...Object.keys(lock.files)]);
+  const files = new Set([...kitOwnedFiles(), ...Object.keys(lock.files).filter((f) => !CI_FILES.includes(f))]);
   for (const rel of files) {
     const dest = path.join(root, rel);
     if (exists(dest)) { fs.rmSync(dest); log.push(`remove ${rel}`); pruneEmptyDirs(root, rel); }

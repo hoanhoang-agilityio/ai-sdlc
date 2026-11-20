@@ -59,3 +59,12 @@ test('lint failure blocks; passing resets counter', () => {
   assert.equal(stop(root).code, 0);
   assert.equal(fs.existsSync(path.join(root, '.sdlc/.stop-attempts')), false);
 });
+
+test('trivial plan (unaccepted) still enforces tests', () => {
+  const root = project({ testCommand: 'exit 1' });
+  gitInit(root);
+  put(root, 'intent/001-x/plan.md', fm('draft', 'trivial'));
+  put(root, '.sdlc/active', '001-x\n');
+  put(root, 'src/a.js', 'x');
+  assert.equal(runHook(STOP, root, {}).code, 2);
+});

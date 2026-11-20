@@ -3,15 +3,14 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { parseFrontmatter, designState, designRequires, DESIGN_FILES } from '../kit/.claude/hooks/lib.mjs';
+import { parseFrontmatter } from '../kit/.claude/hooks/lib.mjs';
 
 export const KIT_DIR = fileURLToPath(new URL('../kit/', import.meta.url));
 export const PKG = JSON.parse(fs.readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'));
 export const MARK_START = '<!-- ai-sdlc:start -->';
 export const MARK_END = '<!-- ai-sdlc:end -->';
 export const STOP_ATTEMPTS = '.sdlc/.stop-attempts';
-export { parseFrontmatter, designState, designRequires, DESIGN_FILES };
-export const SKILL_COUNT = 23;
+export { parseFrontmatter };
 
 export const DEFAULT_ALLOWLIST = [
   'intent/**', '.sdlc/**', '.claude/**', 'docs/**', 'evals/**',
@@ -42,15 +41,16 @@ export function listFiles(dir) {
   return out.sort();
 }
 
-/** Kit-owned files (copied, hashed in kit-lock): skills/** and hooks/**, as project-relative paths. */
+/** Kit-owned files (copied, hashed in kit-lock): skills/**, hooks/** and .sdlc/bin/**, as project-relative paths. */
 export function kitOwnedFiles() {
   return [
     ...listFiles(path.join(KIT_DIR, '.claude', 'skills')).map((f) => `.claude/skills/${f}`),
     ...listFiles(path.join(KIT_DIR, '.claude', 'hooks')).map((f) => `.claude/hooks/${f}`),
+    ...listFiles(path.join(KIT_DIR, '.sdlc', 'bin')).map((f) => `.sdlc/bin/${f}`),
   ];
 }
 export const PROJECT_OWNED = ['REVIEW.md', '.sdlc/policies/README.md', 'intent/README.md', 'evals/review-cases/README.md'];
-export const CI_FILES = ['.github/workflows/sdlc-ci.yml', '.github/pull_request_template.md', '.github/CODEOWNERS'];
+export const CI_FILES = ['.github/workflows/sdlc-ci.yml', '.github/workflows/sdlc-accept.yml', '.github/pull_request_template.md', '.github/CODEOWNERS'];
 
 export function git(dir, args) {
   const r = spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8' });
@@ -102,11 +102,18 @@ export function detectDefaultBranch(dir) {
   return ref ? ref.replace(/^origin\//, '') : 'main';
 }
 
-/** Merge hook groups; add only if no hook with the same command exists. */
+/** Merge hook groups (add only if no hook with the same command exists) and permissions.deny (deduped). */
 export function mergeSettings(existing, fragment) {
   const out = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {};
   out.hooks = out.hooks && typeof out.hooks === 'object' ? out.hooks : {};
   let added = 0;
+  const deny = fragment.permissions?.deny || [];
+  let deniedAdded = 0;
+  if (deny.length) {
+    out.permissions = out.permissions && typeof out.permissions === 'object' ? out.permissions : {};
+    if (!Array.isArray(out.permissions.deny)) out.permissions.deny = [];
+    for (const d of deny) if (!out.permissions.deny.includes(d)) { out.permissions.deny.push(d); deniedAdded++; }
+  }
   for (const [event, groups] of Object.entries(fragment.hooks || {})) {
     if (!Array.isArray(out.hooks[event])) out.hooks[event] = [];
     const present = new Set();
@@ -119,12 +126,19 @@ export function mergeSettings(existing, fragment) {
       added++;
     }
   }
-  return { settings: out, added };
+  return { settings: out, added, deniedAdded };
 }
 export const isSdlcCommand = (c) => typeof c === 'string' && /sdlc-(gate|stop)\.mjs/.test(c);
 
-export function removeSdlcHooks(settings) {
+export const kitDenyRules = () => JSON.parse(read(path.join(KIT_DIR, '.claude', 'settings.sdlc.json'))).permissions?.deny || [];
+
+export function removeSdlcHooks(settings, deny = kitDenyRules()) {
   let removed = 0;
+  if (settings?.permissions && Array.isArray(settings.permissions.deny)) {
+    settings.permissions.deny = settings.permissions.deny.filter((d) => !deny.includes(d));
+    if (!settings.permissions.deny.length) delete settings.permissions.deny;
+    if (!Object.keys(settings.permissions).length) delete settings.permissions;
+  }
   if (!settings || !settings.hooks) return removed;
   for (const event of Object.keys(settings.hooks)) {
     const groups = settings.hooks[event];

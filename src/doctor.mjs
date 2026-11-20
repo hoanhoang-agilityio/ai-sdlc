@@ -24,6 +24,8 @@ export function runDoctor(root) {
   const has = (event, file) => ((s && s.hooks && s.hooks[event]) || []).some((g) => ((g && g.hooks) || []).some((h) => String(h.command || '').includes(file)));
   add('settings.json has PreToolUse gate hook', has('PreToolUse', 'sdlc-gate.mjs'));
   add('settings.json has Stop hook', has('Stop', 'sdlc-stop.mjs'));
+  add('settings.json denies edits to protected files', ((s && s.permissions && s.permissions.deny) || []).includes('Edit(.sdlc/config.json)'), 'run ai-sdlc update', true);
+  add('accept command present', exists(path.join(root, '.sdlc', 'bin', 'accept.mjs')), 'run ai-sdlc update');
 
   const cm = exists(path.join(root, 'CLAUDE.md')) ? read(path.join(root, 'CLAUDE.md')) : '';
   add('CLAUDE.md has ai-sdlc markers', cm.includes(MARK_START) && cm.includes(MARK_END));
