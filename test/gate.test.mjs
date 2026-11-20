@@ -44,30 +44,72 @@ test('rule 2: accepted artifacts are frozen', () => {
   allowed(gate(root, 'Edit', { file_path: path.join(root, 'intent/002-y/intent.md'), old_string: 'T', new_string: 'U' }));
 });
 
-test('rule 3: spec and plan prerequisites', () => {
+test('spec needs no intent.md', () => {
   const root = project();
-  const spec = path.join(root, 'intent/001-x/spec.md');
-  const plan = path.join(root, 'intent/001-x/plan.md');
-  put(root, 'intent/001-x/intent.md', fm('draft', 'low'));
-  blocked(gate(root, 'Write', { file_path: spec, content: fm() }));
-  blocked(gate(root, 'Write', { file_path: plan, content: fm() }));
-  put(root, 'intent/001-x/intent.md', fm('accepted', 'low'));
-  allowed(gate(root, 'Write', { file_path: plan, content: fm('draft', 'low') }));
-  allowed(gate(root, 'Write', { file_path: spec, content: fm() }));
-  put(root, 'intent/001-x/intent.md', fm('accepted', 'medium'));
-  blocked(gate(root, 'Write', { file_path: plan, content: fm() }));
+  allowed(gate(root, 'Write', { file_path: path.join(root, 'intent/001-x/spec.md'), content: fm() }));
+});
+
+test('plan: trivial/low need nothing, medium/high need accepted spec + design with headings', () => {
+  const root = project();
+  const plan = 'intent/001-x/plan.md';
+  allowed(w(root, plan, fm('draft', 'trivial')));
+  allowed(w(root, plan, fm('draft', 'low')));
+  put(root, 'intent/001-x/spec.md', fm('draft', 'medium'));
+  let r = w(root, plan, fm('draft', 'low')); // spec risk wins
+  blocked(r);
+  assert.match(r.err, /spec\.md accepted/);
+  assert.match(r.err, /design\/design\.md accepted/);
+  assert.match(r.err, /Test strategy/);
+  assert.match(r.err, /\/accept <stage>|\/accept plan|accept <stage>/);
   put(root, 'intent/001-x/spec.md', fm('accepted', 'medium'));
   put(root, 'intent/001-x/design/design.md', fm('accepted', 'medium'));
-  allowed(gate(root, 'Write', { file_path: plan, content: fm() }));
-  allowed(gate(root, 'Write', { file_path: path.join(root, 'intent/001-x/incident.md'), content: fm() }));
-  allowed(gate(root, 'Write', { file_path: path.join(root, 'intent/001-x/build-log.md'), content: 'x' }));
+  r = w(root, plan, fm('draft', 'medium'));
+  blocked(r);
+  assert.doesNotMatch(r.err, /spec\.md accepted/);
+  assert.match(r.err, /Test strategy/);
+  put(root, 'intent/001-x/design/design.md', fm('accepted', 'medium') + '\n## Test strategy\n');
+  allowed(w(root, plan, fm('draft', 'medium')));
+  put(root, 'intent/001-x/design/design.md', fm('draft', 'medium') + '\n## Test strategy\n');
+  blocked(w(root, plan, fm('draft', 'medium')));
+});
+
+test('plan: high risk also needs a Security heading; plan risk counts', () => {
+  const root = project();
+  const plan = 'intent/001-x/plan.md';
+  put(root, 'intent/001-x/spec.md', fm('accepted', 'medium'));
+  put(root, 'intent/001-x/design/design.md', fm('accepted', 'high') + '\n## Test strategy\n');
+  allowed(w(root, plan, fm('draft', 'medium')));
+  const r = w(root, plan, fm('draft', 'high'));
+  blocked(r);
+  assert.match(r.err, /## Security/);
+  put(root, 'intent/001-x/spec.md', fm('accepted', 'high'));
+  blocked(w(root, plan, fm('draft', 'low')));
+  put(root, 'intent/001-x/design/design.md', fm('accepted', 'high') + '\n## Test strategy\n## Security\n');
+  allowed(w(root, plan, fm('draft', 'high')));
+});
+
+test('plan: legacy intent.md risk is read when spec has none', () => {
+  const root = project();
+  put(root, 'intent/001-x/intent.md', fm('accepted', 'high'));
+  put(root, 'intent/001-x/spec.md', '---\nstatus: accepted\n---\n');
+  blocked(w(root, 'intent/001-x/plan.md', fm('draft', 'low')));
+});
+
+test('rule 4: trivial plan lets code through unaccepted', () => {
+  const root = project();
+  const code = path.join(root, 'src/app.js');
+  put(root, '.sdlc/active', '001-x\n');
+  put(root, 'intent/001-x/plan.md', fm('draft', 'low'));
+  blocked(gate(root, 'Write', { file_path: code, content: 'x' }));
+  put(root, 'intent/001-x/plan.md', fm('draft', 'trivial'));
+  allowed(gate(root, 'Write', { file_path: code, content: 'x' }));
 });
 
 test('rule 4: code needs active change with accepted plan', () => {
   const root = project();
   const code = path.join(root, 'src/app.js');
   blocked(gate(root, 'Write', { file_path: code, content: 'x' }));
-  for (const rel of ['intent/001-x/intent.md', '.sdlc/x.json', '.claude/skills/a.md', 'docs/a.md', 'evals/a.md', 'CLAUDE.md', 'REVIEW.md', 'README.md']) {
+  for (const rel of ['intent/001-x/spec.md', '.sdlc/x.json', '.claude/skills/a.md', 'docs/a.md', 'evals/a.md', 'CLAUDE.md', 'REVIEW.md', 'README.md']) {
     allowed(gate(root, 'Write', { file_path: path.join(root, rel), content: 'x' }));
   }
   put(root, 'intent/001-x/plan.md', fm('draft'));
@@ -143,7 +185,8 @@ test('fails open on bad input', () => {
 test('protected files: human-only (Write/Edit/MultiEdit)', () => {
   const root = project();
   const files = ['.claude/hooks/sdlc-gate.mjs', '.claude/hooks/lib.mjs', '.claude/settings.json', '.claude/settings.local.json',
-    '.sdlc/config.json', '.sdlc/kit-lock.json', '.sdlc/bypass.log', '.github/workflows/sdlc-ci.yml', '.github/CODEOWNERS'];
+    '.sdlc/config.json', '.sdlc/kit-lock.json', '.sdlc/bypass.log', '.sdlc/bin/accept.mjs', '.github/workflows/sdlc-ci.yml',
+    '.github/workflows/sdlc-accept.yml', '.github/CODEOWNERS'];
   for (const f of files) {
     const p = path.join(root, f);
     const r = gate(root, 'Write', { file_path: p, content: 'x' });
@@ -164,6 +207,8 @@ test('protected files: bash mutation blocked, reads allowed', () => {
   blocked(bash(root, 'mv x .claude/settings.json'));
   blocked(bash(root, 'cp x .github/CODEOWNERS'));
   blocked(bash(root, 'truncate -s0 .sdlc/bypass.log'));
+  blocked(bash(root, 'rm .sdlc/bin/accept.mjs'));
+  blocked(bash(root, 'echo x > .github/workflows/sdlc-accept.yml'));
   blocked(bash(root, 'chmod -x .claude/hooks/lib.mjs'));
   blocked(bash(root, 'git checkout -- .sdlc/config.json'));
   blocked(bash(root, 'git restore .github/workflows/sdlc-ci.yml'));
@@ -174,112 +219,64 @@ test('protected files: bash mutation blocked, reads allowed', () => {
   allowed(bash(root, 'echo 001-x > .sdlc/active'));
 });
 
-const dfm = (status, requires) => `---\nstatus: ${status}\nrisk: medium\naccepted_by:\naccepted_at:\n${requires}\n---\n\n# D\n`;
 const w = (root, rel, content = 'x') => gate(root, 'Write', { file_path: path.join(root, rel), content });
+const edit = (root, rel) => gate(root, 'Edit', { file_path: path.join(root, rel), old_string: 'T', new_string: 'U' });
 
 test('design/* needs an accepted spec.md', () => {
   const root = project();
-  put(root, 'intent/001-x/intent.md', fm('accepted'));
   put(root, 'intent/001-x/spec.md', fm('draft'));
-  for (const f of ['design/design.md', 'design/api.md', 'design/openapi.yaml', 'design/prototype/index.html']) blocked(w(root, `intent/001-x/${f}`));
+  for (const f of ['design/design.md', 'design/openapi.yaml', 'design/prototype/index.html']) blocked(w(root, `intent/001-x/${f}`));
   put(root, 'intent/001-x/spec.md', fm('accepted'));
-  for (const f of ['design/design.md', 'design/api.md', 'design/openapi.yaml', 'design/prototype/index.html']) allowed(w(root, `intent/001-x/${f}`, f.endsWith('.md') ? fm() : 'x'));
+  for (const f of ['design/design.md', 'design/openapi.yaml', 'design/prototype/index.html']) allowed(w(root, `intent/001-x/${f}`, f.endsWith('.md') ? fm() : 'x'));
   allowed(w(root, 'intent/001-x/grill.md'));
 });
 
-test('plan needs accepted design.md and every required artifact', () => {
-  const root = project();
-  const plan = 'intent/001-x/plan.md';
-  put(root, 'intent/001-x/intent.md', fm('accepted'));
-  put(root, 'intent/001-x/spec.md', fm('accepted'));
-  let r = w(root, plan, fm());
-  blocked(r);
-  assert.match(r.err, /design\/design\.md/);
-  put(root, 'intent/001-x/design/design.md', dfm('draft', 'requires: [api-design, security-design, design-system]'));
-  blocked(w(root, plan, fm()));
-  put(root, 'intent/001-x/design/design.md', dfm('accepted', 'requires: [api-design, security-design, design-system]'));
-  r = w(root, plan, fm());
-  blocked(r);
-  assert.match(r.err, /design\/api\.md/);
-  assert.match(r.err, /design\/security\.md/);
-  assert.match(r.err, /docs\/design-system\/design-system\.md/);
-  put(root, 'intent/001-x/design/api.md', fm('accepted'));
-  put(root, 'intent/001-x/design/security.md', fm('draft'));
-  r = w(root, plan, fm());
-  blocked(r);
-  assert.doesNotMatch(r.err, /design\/api\.md/);
-  assert.match(r.err, /design\/security\.md/);
-  put(root, 'intent/001-x/design/security.md', fm('accepted'));
-  put(root, 'docs/design-system/design-system.md', fm('accepted'));
-  allowed(w(root, plan, fm()));
-});
-
-test('requires: block list and empty list parse', () => {
-  const root = project();
-  const plan = 'intent/001-x/plan.md';
-  put(root, 'intent/001-x/intent.md', fm('accepted'));
-  put(root, 'intent/001-x/spec.md', fm('accepted'));
-  put(root, 'intent/001-x/design/design.md', dfm('accepted', 'requires:\n  - data-model\n  - test-strategy  # always'));
-  const r = w(root, plan, fm());
-  blocked(r);
-  assert.match(r.err, /design\/data-model\.md/);
-  assert.match(r.err, /design\/test-strategy\.md/);
-  put(root, 'intent/001-x/design/data-model.md', fm('accepted'));
-  put(root, 'intent/001-x/design/test-strategy.md', fm('accepted'));
-  allowed(w(root, plan, fm()));
-  put(root, 'intent/001-x/design/design.md', dfm('accepted', 'requires: []'));
-  allowed(w(root, plan, fm()));
-});
-
-test('low risk plan still allowed after intent alone', () => {
-  const root = project();
-  put(root, 'intent/001-x/intent.md', fm('accepted', 'low'));
-  allowed(w(root, 'intent/001-x/plan.md', fm('draft', 'low')));
-});
-
-test('rule 2: accepted design artifacts, design system and ADRs are frozen', () => {
+test('frozen: accepted design.md freezes design/ files; ADRs freeze when accepted', () => {
   const root = project();
   put(root, 'intent/001-x/spec.md', fm('accepted'));
-  put(root, 'intent/001-x/design/api.md', fm('accepted'));
+  put(root, 'intent/001-x/design/design.md', fm('draft'));
+  allowed(w(root, 'intent/001-x/design/prototype/index.html'));
+  allowed(edit(root, 'intent/001-x/design/design.md'));
   put(root, 'intent/001-x/design/design.md', fm('accepted'));
-  blocked(gate(root, 'Edit', { file_path: path.join(root, 'intent/001-x/design/api.md'), old_string: 'T', new_string: 'U' }));
-  blocked(gate(root, 'Edit', { file_path: path.join(root, 'intent/001-x/design/design.md'), old_string: 'T', new_string: 'U' }));
-  put(root, 'intent/001-x/design/data-model.md', fm('draft'));
-  allowed(gate(root, 'Edit', { file_path: path.join(root, 'intent/001-x/design/data-model.md'), old_string: 'T', new_string: 'U' }));
-  put(root, 'docs/design-system/design-system.md', fm('draft'));
-  allowed(w(root, 'docs/design-system/tokens.json', '{}'));
-  allowed(w(root, 'docs/design-system/components.md'));
-  put(root, 'docs/design-system/design-system.md', fm('accepted'));
-  blocked(w(root, 'docs/design-system/design-system.md', fm()));
-  blocked(w(root, 'docs/design-system/tokens.json', '{}'));
-  blocked(w(root, 'docs/design-system/components.md'));
+  blocked(edit(root, 'intent/001-x/design/design.md'));
+  blocked(w(root, 'intent/001-x/design/prototype/index.html'));
+  blocked(w(root, 'intent/001-x/design/api.md', fm()));
   put(root, 'docs/adr/0001-x.md', fm('accepted'));
   put(root, 'docs/adr/0002-y.md', fm('draft'));
   blocked(w(root, 'docs/adr/0001-x.md', fm()));
   allowed(w(root, 'docs/adr/0002-y.md', fm()));
 });
 
-test('companion files freeze with their accepted artifact', () => {
+test('bash: running the accept command is blocked for Claude', () => {
   const root = project();
-  put(root, 'intent/001-x/spec.md', fm('accepted'));
-  put(root, 'intent/001-x/design/api.md', fm('draft'));
-  put(root, 'intent/001-x/design/prototype.md', fm('draft'));
-  const files = ['openapi.yaml', 'asyncapi.yaml', 'schema.graphql'];
-  for (const f of files) allowed(w(root, `intent/001-x/design/${f}`));
-  allowed(w(root, 'intent/001-x/design/prototype/index.html'));
-  put(root, 'intent/001-x/design/api.md', fm('accepted'));
-  for (const f of files) blocked(w(root, `intent/001-x/design/${f}`));
-  allowed(w(root, 'intent/001-x/design/prototype/index.html'));
-  put(root, 'intent/001-x/design/prototype.md', fm('accepted'));
-  blocked(w(root, 'intent/001-x/design/prototype/index.html'));
+  blocked(bash(root, 'ai-sdlc accept spec'));
+  blocked(bash(root, 'npx github:hoanhoang-agilityio/ai-sdlc accept plan 001-x'));
+  blocked(bash(root, 'node .sdlc/bin/accept.mjs design'));
+  blocked(bash(root, 'cd . && npx ai-sdlc accept spec --by me'));
+  allowed(bash(root, 'cat .sdlc/bin/accept.mjs'));
+  allowed(bash(root, 'git status'));
 });
 
-test('unknown name in requires blocks plan', () => {
+test('rule 4: trivial pass uses effective risk (spec risk counts)', () => {
   const root = project();
-  put(root, 'intent/001-x/intent.md', fm('accepted'));
-  put(root, 'intent/001-x/spec.md', fm('accepted'));
-  put(root, 'intent/001-x/design/design.md', dfm('accepted', 'requires: [api-desing]'));
-  const r = w(root, 'intent/001-x/plan.md', fm());
-  blocked(r);
-  assert.match(r.err, /design\.md requires unknown artifact 'api-desing'; valid: .*api-design/);
+  put(root, '.sdlc/active', '001-x\n');
+  put(root, 'intent/001-x/plan.md', fm('draft', 'trivial'));
+  put(root, 'intent/001-x/spec.md', fm('accepted', 'medium'));
+  blocked(gate(root, 'Write', { file_path: path.join(root, 'src/a.js'), content: 'x' }));
+});
+
+test('plan: legacy accepted test-strategy.md / security.md satisfy the heading requirement', () => {
+  const root = project();
+  put(root, 'intent/001-x/spec.md', fm('accepted', 'high'));
+  put(root, 'intent/001-x/design/design.md', fm('accepted', 'high'));
+  blocked(w(root, 'intent/001-x/plan.md', fm('draft', 'high')));
+  put(root, 'intent/001-x/design/test-strategy.md', fm('accepted'));
+  put(root, 'intent/001-x/design/security.md', fm('accepted'));
+  allowed(w(root, 'intent/001-x/plan.md', fm('draft', 'high')));
+});
+
+test('bash: git commit messages mentioning protected paths are not mutations', () => {
+  const root = project();
+  allowed(bash(root, `git commit -m "docs: note .sdlc/config.json and .claude/hooks/ changes"`));
+  blocked(bash(root, `echo x > .sdlc/config.json`));
 });

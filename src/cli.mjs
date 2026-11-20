@@ -3,11 +3,14 @@ import { PKG } from './util.mjs';
 import { init, update, uninstall } from './install.mjs';
 import { renderStatus } from './status.mjs';
 import { runDoctor } from './doctor.mjs';
+import { acceptCommand } from '../kit/.sdlc/bin/accept.mjs';
 
 const HELP = `ai-sdlc ${PKG.version} - AI-native SDLC kit for Claude Code
 
 Usage:
   ai-sdlc init [dir] [--new|--existing] [--force] [--no-ci] [--ci]
+  ai-sdlc accept <spec|design|plan|incident> [NNN-slug] [--by <name>] [--no-commit]
+                                   a human accepts a stage and commits it
   ai-sdlc update [dir] [--force]   refresh skills and hooks; skip files you edited
   ai-sdlc status [dir]             changes in intent/ and the next gate
   ai-sdlc doctor [dir]             check the install (exit 1 on failure)
@@ -21,11 +24,14 @@ Options:
 function parse(argv) {
   const opts = {};
   const pos = [];
-  for (const a of argv) {
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
     if (a === '--help' || a === '-h') opts.help = true;
     else if (a === '--version' || a === '-v') opts.version = true;
     else if (a === '--new') opts.new = true;
     else if (a === '--existing') opts.existing = true;
+    else if (a === '--no-commit') opts.noCommit = true;
+    else if (a === '--by') { opts.by = argv[++i]; if (!opts.by) opts.unknown = '--by (needs a name)'; }
     else if (a === '--force') opts.force = true;
     else if (a === '--no-ci') opts.noCi = true;
     else if (a === '--ci') opts.ci = true;
@@ -42,6 +48,7 @@ export async function main(argv, out = console.log) {
   if (opts.help) { out(HELP); return 0; }
   if (!cmd) { out(HELP); return argv.length ? 1 : 0; }
   if (opts.unknown) { out(`Unknown option: ${opts.unknown}\n\n${HELP}`); return 1; }
+  if (cmd === 'accept') return acceptCommand(argv.filter((a) => a !== 'accept'), { out });
   const target = path.resolve(dirArg || process.cwd());
   switch (cmd) {
     case 'init': {
@@ -49,9 +56,7 @@ export async function main(argv, out = console.log) {
       const { mode, log } = init(target, opts);
       out(`ai-sdlc init (${mode} product) in ${target}\n`);
       log.forEach((l) => out('  ' + l));
-      out(mode === 'new'
-        ? '\nNext: open Claude Code in this folder and run /sdlc-new-product'
-        : '\nNext: open Claude Code in this folder and run /sdlc-adopt-existing');
+      out('\nNext: open Claude Code in this folder and run /sdlc-init');
       return 0;
     }
     case 'update':
