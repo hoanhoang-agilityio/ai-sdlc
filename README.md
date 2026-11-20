@@ -1,171 +1,103 @@
 # ai-sdlc
 
-A kit you install into any repo with one command. It makes Claude Code follow an AI-native SDLC: every change moves through committed Markdown artifacts, a human accepts each one, and hooks plus CI enforce the rules. It has four parts: 23 skills (advice), hooks (local guardrail), a CI template (the real gate) and a zero-dependency CLI that installs and updates all of it. Stack-agnostic, solo or team. Design: [DESIGN.md](DESIGN.md).
+A kit you install into any repo with one command. It makes Claude Code follow an AI-native SDLC: every change moves through a few committed Markdown artifacts, a human accepts the gated ones, and hooks plus CI enforce the rules. Parts: 10 skills (advice), hooks (local guardrail), a CI template (the real gate) and a zero-dependency CLI. Stack-agnostic, solo or team. Design: [DESIGN.md](DESIGN.md). History: [CHANGELOG.md](CHANGELOG.md).
 
 ## The chain
 
 ```text
-intent -> spec -> design -> plan -> build -> review -> ship -> incident
- (human   (human   (human    (human  (tests   (human     (human   (new draft
-  accepts) accepts; accepts   accepts; +lint    approvals,  approves intent;
-           skip if  design.md code     green)   human       production) loop
-           low)     + each    edits            merges)                 restarts)
-                    required  blocked
-                    artifact) until)
-grill-me can run at any stage; its decisions feed intent, spec and design.
+spec -> design -> plan -> build -> review -> ship -> incident (loops back to spec)
 ```
+
+`grill-me` can run before `spec` or at any stage. Artifacts live in `intent/NNN-slug/`; how much of the chain you use depends on risk.
 
 ## Quick start
 
 Requires Node >= 18.
 
-**A. New product** (empty repo)
-
 ```bash
-npx github:hoanhoang-agilityio/ai-sdlc init
+npx github:hoanhoang-agilityio/ai-sdlc init     # detects new vs existing repo
 # open Claude Code, then:
-/sdlc-new-product
+/sdlc-init                                     # new: interview + product spec; existing: map the codebase
 ```
 
-**B. Existing product**
+Then per change: describe it, `/spec` (sets risk) -> `/design` (medium/high) -> `/plan` -> `/build` -> `/review-pr` -> human merge -> `/ship`.
 
-```bash
-npx github:hoanhoang-agilityio/ai-sdlc init
-# open Claude Code, then:
-/sdlc-adopt-existing     # changes no app code; drafts up to 5 intents
-```
+## Gates
 
-Then for each change: (`/grill-me`) -> `/intent` -> review and accept -> `/spec` (medium/high) -> `/design` and its discipline skills (medium/high) -> `/plan` -> `/build` -> `/review-pr` -> human merge -> `/ship`.
+| Risk | Artifacts | Human accepts |
+| --- | --- | --- |
+| trivial | `plan.md` (a few lines) | none, only PR review |
+| low | `plan.md` (spec optional) | plan |
+| medium | spec, design, plan | spec, then design, then plan |
+| high | same, design needs `## Security` | same |
 
-## How gates work
+Risk guide: trivial = one-sentence change, at most 3 files, no `sensitivePaths`; low = small, no `sensitivePaths`; medium = a new feature; high = personal data, auth, payments or `sensitivePaths`. Claude cannot lower risk. Accepting `design` covers every draft `.md` under `design/` (prototype included).
 
-Every artifact in `intent/NNN-slug/` starts with frontmatter. Only a human sets `status: accepted`; accepted files are frozen (set `draft` to reopen).
+**How a human accepts (one action):** comment `/accept <spec|design|plan|incident>` on the PR (a GitHub Action commits it; works on mobile), or run `npx github:hoanhoang-agilityio/ai-sdlc accept <stage>` locally. Claude never sets `status: accepted` and never runs the accept command; the hook blocks both. Accepted artifacts are frozen: to change one, the human sets `status: draft`.
 
-```yaml
----
-status: draft        # draft | accepted | rejected
-risk: medium         # low | medium | high
-accepted_by:
-accepted_at:
----
-```
+PRs that change only `docs`/`intent` are green in CI. Code PRs need an accepted plan, or a trivial plan within limits. Human PR approvals: trivial/low 1, medium 1, high 2 via CODEOWNERS; an agent's approval never counts.
 
-| Risk | Typical change | Chain | Human PR approvals |
-| --- | --- | --- | --- |
-| low | docs, copy, additive behind a flag | intent -> plan | 1 (the person who prompted Claude counts) |
-| medium | ordinary product change | full | 1 |
-| high | auth, billing, CI, migrations, `sensitivePaths` | full | 2 via CODEOWNERS |
-
-Touching `sensitivePaths` raises risk to at least `medium`; Claude cannot lower it. An agent's approval never counts.
-
-One branch per change: `intent` creates `feat/NNN-slug` (`fix/` for incidents and bugs) from the default branch and every stage commits there, so one PR carries intent, spec, plan, code and review. The human accepts an artifact by editing its frontmatter and committing it themselves (`docs(NNN-slug): accept <stage>`); CI rejects acceptance commits with a Claude co-author trailer. Push early and open a draft PR to review artifacts on GitHub if you like.
-
-Conventions: branches `feat/NNN-slug` (`fix/NNN-slug` for incidents and bugs); Conventional Commits: artifacts `docs(NNN-slug): add spec`, code `feat|fix|test|refactor|chore(NNN-slug): ...`.
+Conventions: branch `feat/NNN-slug` (`fix/NNN-slug` for bugs and incidents); Conventional Commits (`docs(NNN-slug): add spec`, `feat|fix|test|refactor|chore(NNN-slug): ...`).
 
 ## Skills
 
-| Skill | When | Stops at |
+| Skill | When | Writes |
 | --- | --- | --- |
-| `sdlc-new-product` | empty repo | product intent accepted |
-| `sdlc-adopt-existing` | existing repo | each drafted intent accepted |
-| `grill-me` | vague requirements, any stage | nothing (open questions block acceptance) |
-| `intent` | idea, ticket, alert | intent accepted |
-| `spec` | medium/high risk | spec accepted |
-| `design` | after spec | `design.md` accepted |
-| `architecture` | new component, service, integration | `design/architecture.md` + ADRs accepted |
-| `prototype` | user-facing UI | `design/prototype.md` accepted |
-| `design-system` | once per product | `docs/design-system/` accepted |
-| `frontend-design` | UI work | `design/frontend.md` accepted |
-| `api-design` | API or event contract | `design/api.md` + `openapi.yaml` accepted |
-| `backend-design` | server logic | `design/backend.md` accepted |
-| `data-model` | stored data | `design/data-model.md` accepted |
-| `infra-design` | infra, pipeline, deploy | `design/infra.md` accepted |
-| `security-design` | `sensitivePaths`, auth, PII | `design/security.md` accepted |
-| `test-strategy` | medium/high risk | `design/test-strategy.md` accepted |
-| `observability-design` | production behavior | `design/observability.md` accepted |
-| `plan` | after design (or intent if low) | plan accepted |
-| `build` | plan accepted | tests + lint green, self-review done |
-| `review-pr` | build done | human approvals + human merge |
-| `ship` | after merge | production approval |
-| `incident` | alert, breach, bug | incident accepted |
-| `sdlc-status` | any time | nothing |
+| `sdlc-init` | after install | new: product spec; existing: `CLAUDE.md`, `REVIEW.md`, codebase map |
+| `grill-me` | vague requirements | `grill.md` |
+| `spec` | any new change | `spec.md` (intent, requirements, acceptance criteria) |
+| `design` | medium/high | `design/design.md` (checklist; Security and Test strategy required by risk) |
+| `prototype` | user-facing UI | `design/prototype/index.html` + `## Prototype` in design |
+| `plan` | after design, or directly for low/trivial | `plan.md`, `features.json` for big work |
+| `build` | plan accepted | code, tests, `progress.md` |
+| `review-pr` | build done | `review.md`, PR |
+| `ship` | after merge | `release.md` |
+| `incident` | alert, breach, bug | `incident.md`, eval case, draft fix spec |
 
-### Recommend-first and audience
+For project status use `npx github:hoanhoang-agilityio/ai-sdlc status`.
 
-Every skill that asks you something follows the recommend-first rule: Claude analyses the options and gives ONE recommended answer with the reason and trade-off, not a menu. Reply "ok" to accept or say what to change; ask "show options" to see alternatives. Hard-to-reverse choices are flagged **Hard to change later**. Set `audience` in `.sdlc/config.json`: `non-developer` (default; plain language, technical terms explained) or `developer` (terser, alternatives inline).
+**Recommend-first.** Skills that ask you something give ONE recommended answer with reason and trade-off; reply "ok" or say what to change. Set `audience` in `.sdlc/config.json`: `non-developer` (default, plain language) or `developer` (terser). Hard-to-reverse choices are flagged **Hard to change later**.
 
-`review-pr` runs parallel Sonnet finders (spec coverage, correctness, rules, performance, design conformance), Haiku verifiers voting 2 of 3, tags findings Important / Nit / Pre-existing, then a separate `/security-review`. Max 3 rounds; diff-only after round 2; no repeated findings. Claude never approves or merges.
+**build** works one feature at a time, tests first, and marks a feature `passes` in `features.json` only with evidence (test output, screenshot, command output), tested end-to-end like a real user. **review-pr** runs parallel finders, verifiers voting 2 of 3, tags Important / Nit / Pre-existing, then `/security-review`; it reports only gaps affecting correctness or stated requirements. Max 3 rounds. Claude never approves or merges.
 
 ## Hooks
 
-| # | Rule | Hook |
-| --- | --- | --- |
-| 1 | Claude cannot write `status: accepted` / `accepted_by` (file or shell) | gate |
-| 2 | Claude cannot edit an accepted artifact (incl. `design/*.md`, design system, ADRs) | gate |
-| 3 | `spec.md` needs accepted intent; anything in `design/` needs accepted spec; `plan.md` needs accepted spec, accepted `design/design.md` and every artifact in its `requires:` (or an accepted `risk: low` intent) | gate |
-| 4 | Code outside the allowlist needs an active change with an accepted plan | gate |
-| 5 | No writes to `.env*`, `*.pem`, `*.key`, credentials (`.env.example` ok) | gate |
-| 6 | No push to main, force push, `--no-verify`, PR merge commands | gate |
-| 7 | Tests and lint must pass before Claude finishes a build turn (3 blocks max) | stop |
-| 8 | Protected files are human-only: hooks, `.claude/settings*.json`, `.sdlc/config.json`, `.sdlc/kit-lock.json`, `.sdlc/bypass.log`, the CI workflow and CODEOWNERS cannot be written (file or shell); Claude proposes, the human applies. | gate |
+| # | Rule |
+| --- | --- |
+| 1 | Claude cannot write `status: accepted` / `accepted_by`, or run the accept command |
+| 2 | Claude cannot edit an accepted artifact |
+| 3 | Design needs an accepted spec; `plan.md` needs an accepted spec and design (medium/high) |
+| 4 | Code needs an active change with an accepted plan (trivial excepted) |
+| 5 | No writes to secrets (`.env*`, keys; `.env.example` ok) |
+| 6 | No push to main, force push, `--no-verify`, or PR merge commands |
+| 7 | Tests and lint must pass before a build turn ends (3 blocks max) |
+| 8 | Protected files (hooks, `.claude/settings*.json`, `.sdlc/*`, CI workflow, CODEOWNERS) are human-only |
 
-No `.sdlc/config.json` means the kit is not in use and everything is allowed. Hooks fail open on internal errors.
-
-Escape hatch: start Claude Code with `SDLC_GATE=off`. Each bypassed call is logged to `.sdlc/bypass.log` and CI warns on the PR. Limit: hooks cannot catch every shell write; CI is the real gate.
+No `.sdlc/config.json` means the kit is off. Escape hatch: start Claude Code with `SDLC_GATE=off`; bypasses are logged and CI warns. CI is the real gate.
 
 ## CLI
 
 ```bash
 npx github:hoanhoang-agilityio/ai-sdlc init [dir] [--new|--existing] [--force] [--no-ci] [--ci]
 npx github:hoanhoang-agilityio/ai-sdlc update [dir] [--force]
+npx github:hoanhoang-agilityio/ai-sdlc accept <spec|design|plan|incident>
 npx github:hoanhoang-agilityio/ai-sdlc status [dir]
 npx github:hoanhoang-agilityio/ai-sdlc doctor [dir]
 npx github:hoanhoang-agilityio/ai-sdlc uninstall [dir]
 ```
 
-- `init` detects mode, copies skills and hooks, merges hooks into `.claude/settings.json` (other keys kept), writes `.sdlc/config.json` with the detected test command, adds a marked section to `CLAUDE.md`, records hashes in `.sdlc/kit-lock.json`. CI, PR template and CODEOWNERS are added for new products, and for existing ones only with `--ci`.
-- `update` replaces kit files you have not edited and prints a diff for ones you have; `--force` overwrites. It never touches `intent/`, config, `REVIEW.md` or `.sdlc/policies/`.
-- `status` lists changes, a `design` column (accepted of required, e.g. `3/5`) and the next gate (`*` = active). `doctor` checks all 23 skills and exits 1 on failure. `uninstall` keeps `intent/` and `.sdlc/`.
+`init` copies skills and hooks, merges hook settings, writes `.sdlc/config.json` (with `mode`), and adds a marked section to `CLAUDE.md`. `update` replaces kit files you have not edited and never touches `intent/`, config, `REVIEW.md` or `.sdlc/policies/`. `uninstall` keeps `intent/` and `.sdlc/`.
+
+**Upgrading from v0.2:** run `update`. It removes dropped kit files (13 old skills, templates) unless you modified them. Existing accepted artifacts (`intent.md`, old `design/*.md`) stay valid; `plan` now needs an accepted `design.md` with `## Test strategy` (and `## Security` for high). For v0.2 changes, an accepted `design/test-strategy.md` (and `design/security.md` for high) also counts. `update` now installs and refreshes the CI workflows including `sdlc-accept.yml`, and `.sdlc/active` is gitignored.
 
 ## CI and branch protection
 
-`.github/workflows/sdlc-ci.yml` has jobs `test`, `sdlc-gate`, `security-review` (optional, needs the `ANTHROPIC_API_KEY` secret) and `deploy`. `sdlc-gate` also prints a notice when a PR touches `sensitivePaths`. Set up on GitHub:
+`.github/workflows/sdlc-ci.yml`: `test`, `sdlc-gate`, `security-review` (optional, needs `ANTHROPIC_API_KEY`), `deploy`, plus the `/accept` handler. On GitHub:
 
-1. Settings > Branches > protect `main`: require pull request reviews (2 for high risk via CODEOWNERS), dismiss stale approvals on new commits.
-2. Require status checks `test` and `sdlc-gate`.
-3. Require review from Code Owners; fill in `.github/CODEOWNERS` from your `sensitivePaths`.
-4. Settings > Environments > `production`: add required reviewers.
-5. Optionally add the `ANTHROPIC_API_KEY` secret to enable the security review job.
+1. Protect `main`: require PR reviews (2 for high risk via CODEOWNERS), dismiss stale approvals.
+2. Require checks `test` and `sdlc-gate`; require Code Owners review; fill `.github/CODEOWNERS` from `sensitivePaths`.
+3. Environment `production`: add required reviewers.
 
 ## Customizing
 
-- `REVIEW.md`: project rules the reviewer enforces.
-- `.sdlc/policies/*.md`: rules read by `spec`, `plan` and `review-pr`.
-- `.sdlc/config.json`: `testCommand`, `lintCommand`, `audience`, `sensitivePaths`, `codePathsAllowlist`, `roles`.
-
-The kit never overwrites these.
-
-## Uninstall
-
-`npx github:hoanhoang-agilityio/ai-sdlc uninstall` removes skills, hooks, hook settings entries and the `CLAUDE.md` section. `intent/` and `.sdlc/` stay.
-
-## Layout
-
-```text
-.claude/settings.json, skills/<23>/, hooks/{sdlc-gate,sdlc-stop,lib}.mjs
-.sdlc/config.json, kit-lock.json, policies/, active, bypass.log
-intent/README.md, intent/NNN-slug/{intent,spec,plan,build-log,review,release,incident,grill}.md, design/*
-docs/design-system/, docs/adr/
-evals/review-cases/   REVIEW.md   CLAUDE.md
-.github/workflows/sdlc-ci.yml, pull_request_template.md, CODEOWNERS
-```
-
-This repo: `bin/` and `src/` (CLI), `kit/` (files copied into projects), `test/`.
-
-## Development
-
-```bash
-npm test    # node:test, no dependencies
-```
-
-MIT licensed.
+`REVIEW.md` (reviewer rules), `.sdlc/policies/*.md` (rules read by spec, design, plan, review-pr), `.sdlc/config.json` (`mode`, `testCommand`, `lintCommand`, `audience`, `sensitivePaths`, `codePathsAllowlist`). The kit never overwrites them.
