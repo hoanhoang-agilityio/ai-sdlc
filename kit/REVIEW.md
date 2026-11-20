@@ -8,8 +8,9 @@ Rules the `review-pr` skill enforces on top of `CLAUDE.md`. Edit freely; ai-sdlc
 - Unvalidated external input, secrets in code, or weakened auth checks.
 - Breaking changes to public APIs or data formats without a migration path.
 
-## Usually a Nit
+## Usually a Nit (or not reported)
 - Naming, comment wording and formatting a linter does not enforce.
+- Report only gaps that affect correctness or stated requirements, not style preferences.
 
 ## Ignore
 - Generated files, lockfiles, vendored code.

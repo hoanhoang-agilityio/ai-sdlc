@@ -1,17 +1,20 @@
 # intent/
 
-Every change lives in `intent/NNN-slug/`:
+Each change lives in `intent/NNN-slug/`. Create only what the risk needs.
 
 | File | Purpose | Who accepts |
 | --- | --- | --- |
-| `intent.md` | what, why, constraints, success metric | product owner |
-| `spec.md` | requirements, design, acceptance criteria (skipped for `risk: low`) | human |
-| `plan.md` | files, ordered steps, test plan, rollback | human |
-| `build-log.md` | progress during build | not gated |
+| `grill.md` | interview decisions (optional) | nobody; open questions block the spec |
+| `spec.md` | intent, requirements, acceptance criteria, end-to-end check | human (medium/high) |
+| `design/design.md` | one design; `design/prototype/index.html` if UI | human (medium/high) |
+| `plan.md` | files, steps, test plan, rollback | human (low and above; trivial none) |
+| `features.json` | feature list with `passes` (long work only) | not gated |
+| `progress.md` | done, next, how to run | not gated |
 | `review.md` | layered review result | PR approvers |
 | `release.md` | metrics to watch, rollback | production approver |
 | `incident.md` | diagnosis of a breached control | human |
 
-Frontmatter on gated artifacts: `status` (draft | accepted | rejected), `risk` (low | medium | high),
-`accepted_by`, `accepted_at`. Only a human sets `status: accepted`. Accepted files are frozen;
-set `status: draft` to reopen one.
+Frontmatter: `status` (draft | accepted), `risk` (trivial | low | medium | high), `accepted_by`, `accepted_at`.
+Only a human accepts: comment `/accept <spec|design|plan|incident>` on the PR, or run
+`npx github:hoanhoang-agilityio/ai-sdlc accept <stage>`. Accepted files are frozen; set `status: draft` to reopen.
+Accepting `design` covers every draft `.md` under `design/`.
