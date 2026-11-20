@@ -72,6 +72,14 @@ jobs:
               console.log("::notice::Docs-only PR (intent/, docs/, root *.md): no accepted plan required.");
               process.exit(0);
             }
+            let lock = {};
+            try { lock = JSON.parse(fs.readFileSync(".sdlc/kit-lock.json", "utf8")).files || {}; } catch {}
+            try { Object.assign(lock, JSON.parse(execSync("git show " + process.env.BASE_SHA + ":.sdlc/kit-lock.json").toString()).files || {}); } catch {}
+            const kitMeta = [".sdlc/kit-lock.json", ".claude/settings.json", ".gitignore", "CLAUDE.md"];
+            if (files.every((f) => f in lock || kitMeta.includes(f) || /^(intent|docs)\//.test(f) || /^[^\/]+\.md$/.test(f))) {
+              console.log("::notice::Kit update PR (only ai-sdlc kit files): no accepted plan required. Review the kit diff.");
+              process.exit(0);
+            }
             const body = fs.readFileSync(process.env.PR_BODY_FILE, "utf8");
             const m = /intent\/(\d{3}-[A-Za-z0-9._-]+)/.exec(body);
             if (!m) { console.error("::error::PR body must reference intent/NNN-slug"); process.exit(1); }

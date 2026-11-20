@@ -19,8 +19,12 @@ function saveLock(root, lock) {
   write(path.join(root, LOCK), JSON.stringify(lock, null, 2) + '\n');
 }
 
-// sha256 of the v0.2 kit's sdlc-ci.yml: an untouched v0.2 copy has no lock entry but may still be refreshed.
-const V02_CI_SHA = '2849e3ad9c402a2091e3828a25d44f82ed4d599d47955f7d473cfdb3adb80803';
+// sha256 of the v0.2 kit's CI files: an untouched v0.2 copy has no lock entry but may still be refreshed.
+const V02_CI_SHA = {
+  '.github/workflows/sdlc-ci.yml': '2849e3ad9c402a2091e3828a25d44f82ed4d599d47955f7d473cfdb3adb80803',
+  '.github/pull_request_template.md': 'ca4cb0547547f22359cdc60a0b840749a6afed42c6baa0db21a80fed297bdf2a',
+  '.github/CODEOWNERS': '8d2d6671a47490bc46fbb48ee73eb4c09a444302e0c65fadb7ced282f97f4287',
+};
 
 function createIfMissing(root, rel, log, lock) {
   const dest = path.join(root, rel);
@@ -141,7 +145,7 @@ export function update(root, opts = {}) {
       if (!exists(dest)) { if (rel.endsWith('sdlc-accept.yml')) createIfMissing(root, rel, log, lock); continue; }
       const cur = sha(read(dest));
       if (cur === sha(body)) { lock.files[rel] = cur; continue; }
-      const pristine = lock.files[rel] ? cur === lock.files[rel] : rel.endsWith('sdlc-ci.yml') && cur === V02_CI_SHA;
+      const pristine = lock.files[rel] ? cur === lock.files[rel] : cur === V02_CI_SHA[rel];
       if (opts.force || pristine) { write(dest, body); lock.files[rel] = sha(body); log.push(`update ${rel}${opts.force ? ' (--force)' : ''}`); }
       else log.push(`skip   ${rel} (modified locally or unknown version; run update --force, or copy it from the kit)`);
     }
